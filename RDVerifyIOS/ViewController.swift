@@ -1,3 +1,4 @@
+@preconcurrency
 import UIKit
 import WebKit
 import AVFoundation
@@ -24,8 +25,9 @@ class ViewController: UIViewController {
     
     private func setupWebView() {
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
-        config.preferences.javaScriptEnabled = true
+        let prefs = WKWebpagePreferences()
+        prefs.allowsContentJavaScript = true
+        config.defaultWebpagePreferences = prefs
         
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -47,51 +49,44 @@ class ViewController: UIViewController {
     
     private func parseScheme(_ url: URL) {
         let urlString = url.absoluteString
-        guard let base64String = urlString.replacingOccurrences(of: "rdverify://", with: "")
+        guard let base64Part = urlString.replacingOccurrences(of: "rdverify://", with: "")
             .dropFirst(5)
             .dropLast(4)
-            .addingBase64Padding() else { return }
+            .padding(toLength: ((urlString.count + 3) / 4) * 4, withPad: "=", startingAt: 0),
+              let decodedData = Data(base64Encoded: String(base64Part)),
+              let jsonString = String(data: decodedData, encoding: .utf8),
+              let jsonData = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else { return }
         
-        do {
-            guard let decodedData = Data(base64Encoded: base64String),
-                  let jsonString = String(data: decodedData, encoding: .utf8),
-                  let jsonData = jsonString.data(using: .utf8) else { return }
-            
-            let json = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any]
-            
-            if let proxyData = json?["proxy"] as? [String: Any] {
-                proxyUser = proxyData["login"] as? String
-                proxyPassword = proxyData["password"] as? String
-                proxyHost = proxyData["host"] as? String
-                proxyPort = proxyData["port"] as? Int
-            }
-            
-            idenfyUrl = json?["idenfyLink"] as? String
-            valueFound = true
-            
-            if valueFound {
-                configureProxy()
-            }
-        } catch {
-            print("Error parsing JSON: \(error)")
+        if let proxyData = json["proxy"] as? [String: Any] {
+            proxyUser = proxyData["login"] as? String
+            proxyPassword = proxyData["password"] as? String
+            proxyHost = proxyData["host"] as? String
+            proxyPort = proxyData["port"] as? Int
+        }
+        
+        idenfyUrl = json["idenfyLink"] as? String
+        valueFound = true
+        
+        if valueFound {
+            configureProxy()
         }
     }
     
     private func configureProxy() {
         guard let host = proxyHost, let port = proxyPort else { return }
         
-        let proxyHost = "\(host):\(port)"
-        let configuration = URLSessionConfiguration.default
-        configuration.connectionProxyDictionary = [
+        let proxyDict: [AnyHashable: Any] = [
             kCFProxyHostNameKey: host,
             kCFProxyPortNumberKey: port,
             kCFProxyTypeKey: kCFProxyTypeHTTPS
         ]
         
         if let username = proxyUser, let password = proxyPassword {
-            configuration.connectionProxyDictionary?[kCFProxyUsernameKey] = username
-            configuration.connectionProxyDictionary?[kCFProxyPasswordKey] = password
+            URLCredential(user: username, password: password, persistence: .forSession)
         }
+        
+        URLSession.shared.configuration.connectionProxyDictionary = proxyDict
     }
     
     private func runScript() {
@@ -120,14 +115,5 @@ extension ViewController: WKNavigationDelegate, WKUIDelegate {
         } else {
             completionHandler(.performDefaultHandling, nil)
         }
-    }
-}
-
-extension String {
-    func addingBase64Padding() -> String? {
-        let remainder = self.count % 4
-        if remainder == 0 { return self }
-        let paddingLength = 4 - remainder
-        return self + String(repeating: "=", count: paddingLength)
     }
 }
