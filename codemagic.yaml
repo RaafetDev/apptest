@@ -8,12 +8,28 @@ workflows:
         XCODE_PROJECT: "RDVerifyIOS.xcodeproj"
         XCODE_SCHEME: "RDVerifyIOS"
     scripts:
+      - name: Set up code signing settings
+        script: |
+          echo "Setting up code signing settings..."
+          
       - name: Build iOS app
         script: |
-          xcodebuild build -project "$XCODE_PROJECT" \
+          xcodebuild clean archive \
+            -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
-            -sdk iphonesimulator \
             -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/RDVerifyIOS.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+            
+      - name: Export IPA
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath build/RDVerifyIOS.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/ios \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
