@@ -1,0 +1,22 @@
+workflows:
+  ios-workflow:
+    name: iOS Workflow
+    environment:
+      xcode: latest
+      cocoapods: default
+      vars:
+        XCODE_PROJECT: "RDVerifyIOS.xcodeproj"
+        XCODE_SCHEME: "RDVerifyIOS"
+    scripts:
+      - name: Build iOS app
+        script: |
+          xcodebuild build -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -sdk iphonesimulator \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - build/ios/iphoneos/*.app
+      - build/ios/iphoneos/*.ipa
